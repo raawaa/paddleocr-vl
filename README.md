@@ -19,7 +19,7 @@ A CLI tool that converts PDFs to Markdown using the [PaddleOCR-VL-1.5](https://g
 ## Requirements
 
 - Python 3.10+
-- A [PaddleOCR API](https://paddleocr.aistudio-app.com) token
+- A [PaddleOCR API](https://aistudio.baidu.com/paddleocr) token
 
 ## Installation
 
