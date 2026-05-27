@@ -4,3 +4,8 @@ __pycache__/
 dist/
 *.egg-info/
 .Python
+.python-version
+.env
+.DS_Store
+.idea/
+.vscode/

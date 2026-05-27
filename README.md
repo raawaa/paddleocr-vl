@@ -1,69 +1,125 @@
 # paddleocr-vl
 
-使用 PaddleOCR-VL-1.5 百度官方 API 将 PDF 转换为 Markdown 的命令行工具。
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 
-## 安装
+A CLI tool that converts PDFs to Markdown using the [PaddleOCR-VL-1.5](https://github.com/PaddlePaddle/PaddleOCR) Baidu API.
+
+## Features
+
+- **Single PDF conversion** — convert one PDF to Markdown with a single command
+- **Batch conversion** — process entire directories of PDFs
+- **stdout piping** — output Markdown to stdout for use with other tools (e.g., `glow`)
+- **Asynchronous job processing** — submits PDFs to the API and polls for results with a live spinner
+- **Automatic retry** — exponential backoff on server errors
+- **Rate limit handling** — clean error on HTTP 429 (daily quota exhausted)
+- **Image extraction** — downloads embedded images from the API result
+- **Minimal dependencies** — only requires `requests`
+
+## Requirements
+
+- Python 3.10+
+- A [PaddleOCR API](https://paddleocr.aistudio-app.com) token
+
+## Installation
 
 ```bash
-# 需要先设置 API token
+# Set your API token (required)
 export PADDLEOCR_API_TOKEN="your_token_here"
+```
 
-# 方式一：全局安装（推荐）
-uv tool install /path/to/paddleocr-vl
+### Via uv (recommended)
 
-# 方式二：直接运行
+```bash
+uv tool install git+https://github.com/raawaa/paddleocr-vl.git
+```
+
+### Via pip
+
+```bash
+pip install git+https://github.com/raawaa/paddleocr-vl.git
+```
+
+### Or run locally without installing
+
+```bash
+git clone https://github.com/raawaa/paddleocr-vl.git
+cd paddleocr-vl
+uv sync
 uv run python -m paddleocr_vl convert input.pdf
 ```
 
-## 使用
+## Usage
 
-### 单文件转换
+### Single file
 
 ```bash
-# 输出到 PDF 同目录（input.md）
+# Output next to the PDF (input.pdf → input.md)
 paddleocr-vl convert report.pdf
 
-# 指定输出路径
+# Specify output path
 paddleocr-vl convert report.pdf -o output/report.md
 
-# 输出到 stdout（可管道到其他工具）
+# Output to stdout (pipe to other tools)
 paddleocr-vl convert report.pdf --stdout | glow
 ```
 
-### 批量转换
+### Batch conversion
 
 ```bash
-# 转换目录下所有 PDF
+# Process all PDFs in a directory
 paddleocr-vl convert ~/pdfs/ -o ~/output/
-
-# 使用默认输出目录（./output/）
-paddleocr-vl convert ~/pdfs/
 ```
 
-### 完整选项
+### Options
 
 ```
 paddleocr-vl convert <input> [options]
 
-位置参数:
-  input                 PDF 文件路径 或 包含 PDF 的目录
+Positional arguments:
+  input                 PDF file path or directory containing PDFs
 
-选项:
-  -o, --output PATH     输出路径（文件或目录）
-  --stdout              输出 Markdown 到 stdout
-  --media-dir PATH      图片保存目录
-  --token TEXT          API token（默认读取 $PADDLEOCR_API_TOKEN）
-  --api-base-url URL    API 地址
-  --model TEXT          模型名
-  --timeout SECONDS     作业超时（默认 1800s）
-  --poll-interval SEC   轮询间隔（默认 5s）
-  --enable-all-features 不关闭可选特性
-  --verbose, -v         详细日志
-  --version, -V         显示版本
+Options:
+  -o, --output PATH     Output path (file or directory)
+  --stdout              Write Markdown to stdout
+  --media-dir PATH      Directory for extracted images
+  --token TEXT          API token (default: $PADDLEOCR_API_TOKEN)
+  --api-base-url URL    API endpoint URL
+  --model TEXT          Model name (default: PaddleOCR-VL-1.5)
+  --timeout SECONDS     Job timeout in seconds (default: 1800)
+  --poll-interval SEC   Poll interval in seconds (default: 5)
+  --enable-all-features Enable all optional API features
+  --verbose, -v         Verbose output
+  --version, -V         Show version
 ```
 
-## 环境变量
+## How it works
 
-| 变量 | 说明 |
-|------|------|
-| `PADDLEOCR_API_TOKEN` | PaddleOCR API 访问令牌（必填） |
+The PaddleOCR API uses an **asynchronous job** model:
+
+1. `submit` — upload the PDF file to the API endpoint, receive a `jobId`
+2. `poll` — query the job status every 5 seconds until processing is done
+3. `download` — fetch the JSONL result containing Markdown text and image URLs
+4. `parse` — extract Markdown content and download embedded images locally
+
+## Configuration
+
+### Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `PADDLEOCR_API_TOKEN` | PaddleOCR API token **(required)** |
+
+### API optional features
+
+By default, the following features are **disabled** to reduce processing time and cost:
+
+- Document orientation classification
+- Document unwarping (deskew)
+- Chart recognition
+
+Use `--enable-all-features` to enable all of them.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 — see the [LICENSE](LICENSE) file for details.
