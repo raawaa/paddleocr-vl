@@ -120,7 +120,7 @@ The token is resolved in this order (first wins):
 
 1. `--token` CLI argument
 2. `PADDLEOCR_API_TOKEN` environment variable
-3. Config file at `~/.config/paddleocr-vl/config.json`
+3. Config file at `~/.config/paddleocr-vl/config.json` (Linux/macOS) or `%APPDATA%\paddleocr-vl\config.json` (Windows)
 
 ```bash
 # Option 1: CLI argument (per-invocation override)
@@ -139,7 +139,7 @@ Manage your config:
 
 ```bash
 paddleocr-vl config set-token "your_token_here"   # save token
-paddleocr-vl config show                            # view current config
+paddleocr-vl config show                            # view current config (shows actual path)
 paddleocr-vl config remove-token                    # delete saved token
 ```
 
