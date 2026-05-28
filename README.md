@@ -91,9 +91,15 @@ Options:
   --model TEXT          Model name (default: PaddleOCR-VL-1.5)
   --timeout SECONDS     Job timeout in seconds (default: 1800)
   --poll-interval SEC   Poll interval in seconds (default: 5)
-  --enable-all-features Enable all optional API features
-  --verbose, -v         Verbose output
-  --version, -V         Show version
+  --enable-all-features       Enable all optional API features
+  --orientation-classify      Enable document orientation classification
+  --no-orientation-classify   Disable document orientation classification
+  --doc-unwarping             Enable document unwarping (deskew)
+  --no-doc-unwarping          Disable document unwarping (deskew)
+  --chart-recognition         Enable chart recognition
+  --no-chart-recognition      Disable chart recognition
+  --verbose, -v               Verbose output
+  --version, -V               Show version
 ```
 
 ## How it works
@@ -144,7 +150,28 @@ By default, the following features are **disabled** to reduce processing time an
 - Document unwarping (deskew)
 - Chart recognition
 
-Use `--enable-all-features` to enable all of them.
+Control them with individual flags:
+
+```bash
+# Enable only chart recognition
+paddleocr-vl convert input.pdf --chart-recognition
+
+# Enable all except document unwarping
+paddleocr-vl convert input.pdf --enable-all-features --no-doc-unwarping
+```
+
+Or persist preferences in the config file (so you don't need CLI flags every time):
+
+```bash
+# Enable orientation classification permanently
+paddleocr-vl config set-feature orientation-classify true
+
+# Remove a saved feature setting
+paddleocr-vl config remove-feature orientation-classify
+
+# View current config including features
+paddleocr-vl config show
+```
 
 ## License
 

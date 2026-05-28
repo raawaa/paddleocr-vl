@@ -7,11 +7,11 @@ from pathlib import Path
 from . import __version__
 from . import config as _config
 from .api import (
-    JOB_TIMEOUT,
-    POLL_INTERVAL,
     API_BASE_URL,
     API_MODEL,
-    OPTIONAL_PAYLOAD,
+    DEFAULT_OPTIONAL_PAYLOAD,
+    JOB_TIMEOUT,
+    POLL_INTERVAL,
     download_result,
     poll_job,
     read_api_token,
@@ -19,6 +19,14 @@ from .api import (
 )
 from .errors import JobTimeoutError, PaddleOCRError, RateLimitError
 from .parser import parse_jsonl_to_markdown
+
+
+# CLI 短名到 API payload key 的映射
+CLI_FEATURE_FLAGS = {
+    "orientation_classify": "useDocOrientationClassify",
+    "doc_unwarping": "useDocUnwarping",
+    "chart_recognition": "useChartRecognition",
+}
 
 
 class _Spinner:
@@ -78,6 +86,29 @@ def collect_pdfs(directory: Path) -> list[Path]:
     return sorted(
         p for p in directory.iterdir() if p.is_file() and is_real_pdf(p)
     )
+
+
+def build_optional_payload(args) -> dict:
+    """合并配置文件 + CLI flag，生成最终 optionalPayload。"""
+    # 1. 硬编码默认值（全 False）
+    payload = dict(DEFAULT_OPTIONAL_PAYLOAD)
+
+    # 2. 配置文件覆盖
+    config_features = _config.read_features()
+    payload.update(config_features)
+
+    # 3. --enable-all-features 覆盖
+    if args.enable_all_features:
+        for key in payload:
+            payload[key] = True
+
+    # 4. 独立 CLI flag 覆盖（仅当显式设置时）
+    for attr, api_key in CLI_FEATURE_FLAGS.items():
+        val = getattr(args, attr, None)
+        if val is not None:
+            payload[api_key] = val
+
+    return payload
 
 
 def convert_single(
@@ -287,7 +318,25 @@ def build_parser() -> argparse.ArgumentParser:
     convert_parser.add_argument(
         "--enable-all-features",
         action="store_true",
-        help="不关闭文档方向分类/扭曲矫正/图表识别等可选特性",
+        help="开启所有可选特性（文档方向分类/扭曲矫正/图表识别）",
+    )
+    convert_parser.add_argument(
+        "--orientation-classify",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="开启文档方向分类",
+    )
+    convert_parser.add_argument(
+        "--doc-unwarping",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="开启文档扭曲矫正",
+    )
+    convert_parser.add_argument(
+        "--chart-recognition",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="开启图表识别",
     )
     convert_parser.add_argument(
         "--verbose", "-v", action="store_true", help="详细日志",
@@ -299,6 +348,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     set_token_parser = config_subparsers.add_parser("set-token", help="设置 API token")
     set_token_parser.add_argument("token", help="API token")
+
+    set_feature_parser = config_subparsers.add_parser("set-feature", help="设置可选特性（配置文件持久化）")
+    set_feature_parser.add_argument("name", help="特性名: orientation-classify / doc-unwarping / chart-recognition")
+    set_feature_parser.add_argument("value", choices=["true", "false"], help="true 或 false")
+
+    remove_feature_parser = config_subparsers.add_parser("remove-feature", help="删除已保存的可选特性")
+    remove_feature_parser.add_argument("name", help="特性名: orientation-classify / doc-unwarping / chart-recognition")
 
     config_subparsers.add_parser("show", help="查看当前配置")
     config_subparsers.add_parser("remove-token", help="删除 API token")
@@ -314,14 +370,31 @@ def main():
         if args.config_command == "set-token":
             _config.write_token(args.token)
             print(f"✓ Token 已保存到 {_config.get_config_path()}")
+        elif args.config_command == "set-feature":
+            _config.set_feature(args.name, args.value == "true")
+            names = ", ".join(_config.FEATURE_MAP)
+            print(f"✓ 特性 '{args.name}' 已设为 {args.value}")
+            print(f"  可用特性: {names}")
+        elif args.config_command == "remove-feature":
+            _config.remove_feature(args.name)
+            print(f"✓ 特性 '{args.name}' 已从配置中删除")
         elif args.config_command == "show":
-            token = _config.read_token()
+            cfg = _config._read()
+            token = cfg.get("api_token")
             if token:
                 masked = token[:8] + "..." + token[-4:]
                 print(f"API token: {masked}")
-                print(f"配置文件: {_config.get_config_path()}")
             else:
-                print("未配置 API token")
+                print("API token: (未设置)")
+            features = cfg.get("features", {})
+            if features:
+                print("可选特性:")
+                for key, val in features.items():
+                    status = "开启" if val else "关闭"
+                    print(f"  {key}: {status}")
+            else:
+                print("可选特性: (未配置)")
+            print(f"配置文件: {_config.get_config_path()}")
         elif args.config_command == "remove-token":
             _config.remove_token()
             print("✓ Token 已删除")
@@ -334,8 +407,8 @@ def main():
     # 读取 token
     api_token = args.token or read_api_token()
 
-    # 确定 optional_payload
-    optional_payload = None if args.enable_all_features else OPTIONAL_PAYLOAD
+    # 合并配置文件 + CLI flag 生成 optionalPayload
+    optional_payload = build_optional_payload(args)
 
     # 判断输入类型
     input_type = detect_input_type(args.input)

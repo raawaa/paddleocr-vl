@@ -1,6 +1,14 @@
 import json
 import os
+import sys
 from pathlib import Path
+
+
+FEATURE_MAP = {
+    "orientation-classify": "useDocOrientationClassify",
+    "doc-unwarping": "useDocUnwarping",
+    "chart-recognition": "useChartRecognition",
+}
 
 
 def get_config_dir() -> Path:
@@ -42,3 +50,43 @@ def remove_token() -> None:
         return
     cfg.pop("api_token", None)
     _write(cfg)
+
+
+def get_feature_key(short_name: str) -> str | None:
+    """将 CLI 短名（如 orientation-classify）转为 API payload key（如 useDocOrientationClassify）。"""
+    return FEATURE_MAP.get(short_name)
+
+
+def read_features() -> dict:
+    """读取配置文件中的 features 段，返回 dict。"""
+    return _read().get("features", {})
+
+
+def set_feature(name: str, value: bool) -> None:
+    """设置单个 feature 并保存到配置文件。"""
+    api_key = get_feature_key(name)
+    if api_key is None:
+        valid = ", ".join(FEATURE_MAP)
+        print(f"错误: 未知特性 '{name}'，可用: {valid}", file=sys.stderr)
+        sys.exit(1)
+    cfg = _read()
+    if "features" not in cfg:
+        cfg["features"] = {}
+    cfg["features"][api_key] = value
+    _write(cfg)
+
+
+def remove_feature(name: str) -> None:
+    """从配置文件中删除单个 feature。"""
+    api_key = get_feature_key(name)
+    if api_key is None:
+        valid = ", ".join(FEATURE_MAP)
+        print(f"错误: 未知特性 '{name}'，可用: {valid}", file=sys.stderr)
+        sys.exit(1)
+    cfg = _read()
+    features = cfg.get("features", {})
+    if api_key in features:
+        del features[api_key]
+        if not features:
+            del cfg["features"]
+        _write(cfg)

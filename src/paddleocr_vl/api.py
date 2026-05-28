@@ -11,7 +11,7 @@ from .errors import JobFailedError, JobTimeoutError, RateLimitError
 
 API_BASE_URL = "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs"
 API_MODEL = "PaddleOCR-VL-1.5"
-OPTIONAL_PAYLOAD = {
+DEFAULT_OPTIONAL_PAYLOAD = {
     "useDocOrientationClassify": False,
     "useDocUnwarping": False,
     "useChartRecognition": False,
@@ -52,7 +52,7 @@ def submit_job(
 ) -> str:
     """提交 PDF 到 PaddleOCR API，返回 job_id。"""
     headers = {"Authorization": f"Bearer {api_token}"}
-    payload = optional_payload if optional_payload is not None else OPTIONAL_PAYLOAD
+    payload = DEFAULT_OPTIONAL_PAYLOAD if optional_payload is None else optional_payload
     last_error = ""
 
     for attempt in range(1, max_retries + 2):
