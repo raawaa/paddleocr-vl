@@ -355,9 +355,6 @@ def build_parser() -> argparse.ArgumentParser:
     disable_feature_parser = config_subparsers.add_parser("disable-feature", help="关闭可选特性（配置文件持久化）")
     disable_feature_parser.add_argument("name", help="特性名: orientation-classify / doc-unwarping / chart-recognition")
 
-    remove_feature_parser = config_subparsers.add_parser("remove-feature", help="删除已保存的可选特性")
-    remove_feature_parser.add_argument("name", help="特性名: orientation-classify / doc-unwarping / chart-recognition")
-
     config_subparsers.add_parser("show", help="查看当前配置")
     config_subparsers.add_parser("remove-token", help="删除 API token")
 
@@ -382,9 +379,6 @@ def main():
             names = ", ".join(_config.FEATURE_MAP)
             print(f"✓ 特性 '{args.name}' 已关闭")
             print(f"  可用特性: {names}")
-        elif args.config_command == "remove-feature":
-            _config.remove_feature(args.name)
-            print(f"✓ 特性 '{args.name}' 已从配置中删除")
         elif args.config_command == "show":
             cfg = _config._read()
             token = cfg.get("api_token")

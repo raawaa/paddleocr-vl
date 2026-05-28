@@ -113,7 +113,6 @@ paddleocr-vl config set-token "your_token_here"   # save token
 paddleocr-vl config remove-token                    # delete saved token
 paddleocr-vl config enable-feature <name>    # save feature preference (enabled)
 paddleocr-vl config disable-feature <name>   # save feature preference (disabled)
-paddleocr-vl config remove-feature <name>    # delete feature preference
 paddleocr-vl config show                            # view current config
 ```
 

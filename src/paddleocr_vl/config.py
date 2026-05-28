@@ -78,19 +78,3 @@ def set_feature(name: str, value: bool) -> None:
         cfg["features"] = {}
     cfg["features"][api_key] = value
     _write(cfg)
-
-
-def remove_feature(name: str) -> None:
-    """从配置文件中删除单个 feature。"""
-    api_key = get_feature_key(name)
-    if api_key is None:
-        valid = ", ".join(FEATURE_MAP)
-        print(f"错误: 未知特性 '{name}'，可用: {valid}", file=sys.stderr)
-        sys.exit(1)
-    cfg = _read()
-    features = cfg.get("features", {})
-    if api_key in features:
-        del features[api_key]
-        if not features:
-            del cfg["features"]
-        _write(cfg)

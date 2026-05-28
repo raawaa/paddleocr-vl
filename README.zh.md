@@ -113,7 +113,6 @@ paddleocr-vl config set-token "你的_token"   # 保存 token
 paddleocr-vl config remove-token               # 删除 token
 paddleocr-vl config enable-feature <名称>   # 开启特性
 paddleocr-vl config disable-feature <名称>  # 关闭特性
-paddleocr-vl config remove-feature <名称>   # 删除特性配置
 paddleocr-vl config show                           # 查看当前配置
 ```
 
