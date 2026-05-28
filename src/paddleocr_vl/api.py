@@ -6,6 +6,7 @@ from pathlib import Path
 
 import requests
 
+from . import config as _config
 from .errors import JobFailedError, JobTimeoutError, RateLimitError
 
 API_BASE_URL = "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs"
@@ -23,14 +24,20 @@ RETRY_DELAY = 5
 
 def read_api_token() -> str:
     token = os.environ.get("PADDLEOCR_API_TOKEN")
-    if not token:
-        print(
-            "错误: 请设置环境变量 PADDLEOCR_API_TOKEN\n"
-            "  export PADDLEOCR_API_TOKEN='your_token_here'",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    return token
+    if token:
+        return token
+    token = _config.read_token()
+    if token:
+        return token
+    print(
+        "错误: 未找到 API token\n"
+        "  请通过以下任一方式配置:\n"
+        f"    1. 运行: paddleocr-vl config set-token <token>\n"
+        "    2. 设置环境变量: export PADDLEOCR_API_TOKEN='...'\n"
+        f"    3. 编辑配置文件: {_config.get_config_path()}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 
 def submit_job(

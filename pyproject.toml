@@ -2,7 +2,7 @@
 name = "paddleocr-vl"
 version = "0.1.0"
 description = "Convert PDFs to Markdown using the PaddleOCR-VL-1.5 Baidu API"
-authors = [{name = "yuwenjie"}]
+authors = [{name = "raawaa"}]
 license = "GPL-3.0-only"
 readme = "README.md"
 requires-python = ">=3.10"

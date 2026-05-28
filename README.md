@@ -23,11 +23,6 @@ A CLI tool that converts PDFs to Markdown using the [PaddleOCR-VL-1.5](https://g
 
 ## Installation
 
-```bash
-# Set your API token (required)
-export PADDLEOCR_API_TOKEN="your_token_here"
-```
-
 ### Via uv (recommended)
 
 ```bash
@@ -47,6 +42,14 @@ git clone https://github.com/raawaa/paddleocr-vl.git
 cd paddleocr-vl
 uv sync
 uv run python -m paddleocr_vl convert input.pdf
+```
+
+## Quick setup
+
+Set your API token once — then just run `paddleocr-vl convert`:
+
+```bash
+paddleocr-vl config set-token "your_token_here"
 ```
 
 ## Usage
@@ -83,7 +86,7 @@ Options:
   -o, --output PATH     Output path (file or directory)
   --stdout              Write Markdown to stdout
   --media-dir PATH      Directory for extracted images
-  --token TEXT          API token (default: $PADDLEOCR_API_TOKEN)
+  --token TEXT          API token (default: config file or $PADDLEOCR_API_TOKEN)
   --api-base-url URL    API endpoint URL
   --model TEXT          Model name (default: PaddleOCR-VL-1.5)
   --timeout SECONDS     Job timeout in seconds (default: 1800)
@@ -104,11 +107,34 @@ The PaddleOCR API uses an **asynchronous job** model:
 
 ## Configuration
 
-### Environment variables
+### API token
 
-| Variable | Description |
-|----------|-------------|
-| `PADDLEOCR_API_TOKEN` | PaddleOCR API token **(required)** |
+The token is resolved in this order (first wins):
+
+1. `--token` CLI argument
+2. `PADDLEOCR_API_TOKEN` environment variable
+3. Config file at `~/.config/paddleocr-vl/config.json`
+
+```bash
+# Option 1: CLI argument (per-invocation override)
+paddleocr-vl convert input.pdf --token "your_token_here"
+
+# Option 2: Environment variable
+export PADDLEOCR_API_TOKEN="your_token_here"
+paddleocr-vl convert input.pdf
+
+# Option 3: Config file (set once, forget it)
+paddleocr-vl config set-token "your_token_here"
+paddleocr-vl convert input.pdf
+```
+
+Manage your config:
+
+```bash
+paddleocr-vl config set-token "your_token_here"   # save token
+paddleocr-vl config show                            # view current config
+paddleocr-vl config remove-token                    # delete saved token
+```
 
 ### API optional features
 

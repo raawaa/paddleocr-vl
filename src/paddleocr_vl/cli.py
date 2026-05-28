@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 from . import __version__
+from . import config as _config
 from .api import (
     JOB_TIMEOUT,
     POLL_INTERVAL,
@@ -259,7 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert_parser.add_argument(
         "--token",
-        help="API token（默认读取 $PADDLEOCR_API_TOKEN）",
+        help="API token（默认读取配置文件或 $PADDLEOCR_API_TOKEN）",
     )
     convert_parser.add_argument(
         "--api-base-url",
@@ -292,12 +293,39 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose", "-v", action="store_true", help="详细日志",
     )
 
+    # config 子命令
+    config_parser = subparsers.add_parser("config", help="管理配置")
+    config_subparsers = config_parser.add_subparsers(dest="config_command", required=True)
+
+    set_token_parser = config_subparsers.add_parser("set-token", help="设置 API token")
+    set_token_parser.add_argument("token", help="API token")
+
+    config_subparsers.add_parser("show", help="查看当前配置")
+    config_subparsers.add_parser("remove-token", help="删除 API token")
+
     return parser
 
 
 def main():
     parser = build_parser()
     args = parser.parse_args()
+
+    if args.command == "config":
+        if args.config_command == "set-token":
+            _config.write_token(args.token)
+            print(f"✓ Token 已保存到 {_config.get_config_path()}")
+        elif args.config_command == "show":
+            token = _config.read_token()
+            if token:
+                masked = token[:8] + "..." + token[-4:]
+                print(f"API token: {masked}")
+                print(f"配置文件: {_config.get_config_path()}")
+            else:
+                print("未配置 API token")
+        elif args.config_command == "remove-token":
+            _config.remove_token()
+            print("✓ Token 已删除")
+        return
 
     if args.command != "convert":
         parser.print_help()
