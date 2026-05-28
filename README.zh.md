@@ -95,8 +95,8 @@ PaddleOCR-VL-1.5 API 提供三个可选处理特性，默认**全部关闭**以�
 如需持久化配置（每次转换自动生效）：
 
 ```bash
-paddleocr-vl config set-feature orientation-classify true
-paddleocr-vl config remove-feature orientation-classify
+paddleocr-vl config enable-feature orientation-classify
+paddleocr-vl config disable-feature orientation-classify
 ```
 
 多来源冲突时，按以下顺序决定最终值（后者覆盖前者）：
@@ -111,8 +111,9 @@ paddleocr-vl config remove-feature orientation-classify
 ```bash
 paddleocr-vl config set-token "你的_token"   # 保存 token
 paddleocr-vl config remove-token               # 删除 token
-paddleocr-vl config set-feature <名称> true|false  # 保存特性偏好
-paddleocr-vl config remove-feature <名称>          # 删除特性偏好
+paddleocr-vl config enable-feature <名称>   # 开启特性
+paddleocr-vl config disable-feature <名称>  # 关闭特性
+paddleocr-vl config remove-feature <名称>   # 删除特性配置
 paddleocr-vl config show                           # 查看当前配置
 ```
 

@@ -349,9 +349,11 @@ def build_parser() -> argparse.ArgumentParser:
     set_token_parser = config_subparsers.add_parser("set-token", help="设置 API token")
     set_token_parser.add_argument("token", help="API token")
 
-    set_feature_parser = config_subparsers.add_parser("set-feature", help="设置可选特性（配置文件持久化）")
-    set_feature_parser.add_argument("name", help="特性名: orientation-classify / doc-unwarping / chart-recognition")
-    set_feature_parser.add_argument("value", choices=["true", "false"], help="true 或 false")
+    enable_feature_parser = config_subparsers.add_parser("enable-feature", help="开启可选特性（配置文件持久化）")
+    enable_feature_parser.add_argument("name", help="特性名: orientation-classify / doc-unwarping / chart-recognition")
+
+    disable_feature_parser = config_subparsers.add_parser("disable-feature", help="关闭可选特性（配置文件持久化）")
+    disable_feature_parser.add_argument("name", help="特性名: orientation-classify / doc-unwarping / chart-recognition")
 
     remove_feature_parser = config_subparsers.add_parser("remove-feature", help="删除已保存的可选特性")
     remove_feature_parser.add_argument("name", help="特性名: orientation-classify / doc-unwarping / chart-recognition")
@@ -370,10 +372,15 @@ def main():
         if args.config_command == "set-token":
             _config.write_token(args.token)
             print(f"✓ Token 已保存到 {_config.get_config_path()}")
-        elif args.config_command == "set-feature":
-            _config.set_feature(args.name, args.value == "true")
+        elif args.config_command == "enable-feature":
+            _config.set_feature(args.name, True)
             names = ", ".join(_config.FEATURE_MAP)
-            print(f"✓ 特性 '{args.name}' 已设为 {args.value}")
+            print(f"✓ 特性 '{args.name}' 已开启")
+            print(f"  可用特性: {names}")
+        elif args.config_command == "disable-feature":
+            _config.set_feature(args.name, False)
+            names = ", ".join(_config.FEATURE_MAP)
+            print(f"✓ 特性 '{args.name}' 已关闭")
             print(f"  可用特性: {names}")
         elif args.config_command == "remove-feature":
             _config.remove_feature(args.name)

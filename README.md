@@ -95,8 +95,8 @@ Use individual flags to enable specific features, or `--enable-all-features` for
 To persist preferences (so they apply automatically to every conversion):
 
 ```bash
-paddleocr-vl config set-feature orientation-classify true
-paddleocr-vl config remove-feature orientation-classify
+paddleocr-vl config enable-feature orientation-classify
+paddleocr-vl config disable-feature orientation-classify
 ```
 
 When sources conflict, the effective setting follows this order (last wins):
@@ -111,8 +111,9 @@ When sources conflict, the effective setting follows this order (last wins):
 ```bash
 paddleocr-vl config set-token "your_token_here"   # save token
 paddleocr-vl config remove-token                    # delete saved token
-paddleocr-vl config set-feature <name> true|false   # save feature preference
-paddleocr-vl config remove-feature <name>           # delete feature preference
+paddleocr-vl config enable-feature <name>    # save feature preference (enabled)
+paddleocr-vl config disable-feature <name>   # save feature preference (disabled)
+paddleocr-vl config remove-feature <name>    # delete feature preference
 paddleocr-vl config show                            # view current config
 ```
 
