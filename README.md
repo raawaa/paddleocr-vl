@@ -91,13 +91,14 @@ Options:
   --model TEXT          Model name (default: PaddleOCR-VL-1.5)
   --timeout SECONDS     Job timeout in seconds (default: 1800)
   --poll-interval SEC   Poll interval in seconds (default: 5)
-  --enable-all-features       Enable all optional API features
-  --orientation-classify      Enable document orientation classification
-  --no-orientation-classify   Disable document orientation classification
-  --doc-unwarping             Enable document unwarping (deskew)
-  --no-doc-unwarping          Disable document unwarping (deskew)
-  --chart-recognition         Enable chart recognition
-  --no-chart-recognition      Disable chart recognition
+  --enable-all-features
+                        Enable all optional API features
+  --orientation-classify / --no-orientation-classify
+                        Enable/disable document orientation classification
+  --doc-unwarping / --no-doc-unwarping
+                        Enable/disable document unwarping (deskew)
+  --chart-recognition / --no-chart-recognition
+                        Enable/disable chart recognition
   --verbose, -v               Verbose output
   --version, -V               Show version
 ```
@@ -142,15 +143,19 @@ paddleocr-vl config show                            # view current config
 paddleocr-vl config remove-token                    # delete saved token
 ```
 
-### API optional features
+## Optional Features
 
-By default, the following features are **disabled** to reduce processing time and cost:
+The PaddleOCR-VL-1.5 API offers three optional processing features. All are **disabled by default** to reduce processing time and cost:
 
-- Document orientation classification
-- Document unwarping (deskew)
-- Chart recognition
+| Feature | CLI flag | Description |
+|---------|----------|-------------|
+| Document orientation classification | `--orientation-classify` | Auto-detect and correct page orientation |
+| Document unwarping (deskew) | `--doc-unwarping` | Straighten curved or skewed document photos |
+| Chart recognition | `--chart-recognition` | Extract and structure chart content |
 
-Control them with individual flags:
+### Via CLI flags
+
+Use individual flags to enable specific features, or `--enable-all-features` for all at once:
 
 ```bash
 # Enable only chart recognition
@@ -160,7 +165,9 @@ paddleocr-vl convert input.pdf --chart-recognition
 paddleocr-vl convert input.pdf --enable-all-features --no-doc-unwarping
 ```
 
-Or persist preferences in the config file (so you don't need CLI flags every time):
+### Via configuration file (persistent)
+
+Save preferences to the config file so they apply to every conversion automatically:
 
 ```bash
 # Enable orientation classification permanently
@@ -172,6 +179,17 @@ paddleocr-vl config remove-feature orientation-classify
 # View current config including features
 paddleocr-vl config show
 ```
+
+### Priority
+
+When multiple sources conflict, the effective setting follows this order (last wins):
+
+1. Default — all disabled
+2. Configuration file — persistent preferences
+3. `--enable-all-features` — quick enable all
+4. Individual flag (`--orientation-classify` / `--no-orientation-classify`, etc.) — explicit override
+
+This means CLI flags always override config file settings for a single invocation.
 
 ## License
 
