@@ -1,5 +1,6 @@
 import json
 import os
+import platform
 import sys
 from pathlib import Path
 
@@ -12,8 +13,11 @@ FEATURE_MAP = {
 
 
 def get_config_dir() -> Path:
-    xdg_config = os.environ.get("XDG_CONFIG_HOME")
-    base = Path(xdg_config) if xdg_config else Path.home() / ".config"
+    if platform.system() == "Windows":
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+    else:
+        xdg_config = os.environ.get("XDG_CONFIG_HOME")
+        base = Path(xdg_config) if xdg_config else Path.home() / ".config"
     return base / "paddleocr-vl"
 
 
