@@ -16,6 +16,7 @@ from .api import (
     poll_job,
     read_api_token,
     submit_job,
+    submit_job_url,
 )
 from .errors import JobTimeoutError, PaddleOCRError, RateLimitError
 from .parser import parse_jsonl_to_markdown
@@ -46,11 +47,17 @@ class _Spinner:
         sys.stderr.write("\r" + " " * 60 + "\r")
         sys.stderr.flush()
 
-    def tick(self, elapsed: int):
+    def tick(self, elapsed: int, progress: dict | None = None):
         if not self._running:
             return
+        pages = ""
+        if progress:
+            total = progress.get("totalPages", 0)
+            extracted = progress.get("extractedPages", 0)
+            if total:
+                pages = f" ({extracted}/{total} pages)"
         sys.stderr.write(
-            f"\r  {next(self._spinner)} {self.msg} ({elapsed}s)"
+            f"\r  {next(self._spinner)} {self.msg}{pages} ({elapsed}s)"
         )
         sys.stderr.flush()
 
@@ -60,7 +67,9 @@ class _Spinner:
 
 
 def detect_input_type(path_str: str) -> str:
-    """判断输入是 pdf 文件、目录、还是无效。"""
+    """判断输入是 pdf 文件、URL、目录、还是无效。"""
+    if path_str.startswith(("http://", "https://")):
+        return "url"
     p = Path(path_str)
     if not p.exists():
         return "invalid"
@@ -262,7 +271,7 @@ def convert_batch(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="paddleocr-vl",
-        description="使用 PaddleOCR-VL-1.5 API 将 PDF 转换为 Markdown",
+        description="使用 PaddleOCR-VL-1.6 API 将 PDF 转换为 Markdown",
     )
     parser.add_argument(
         "--version", "-V", action="version", version=f"paddleocr-vl {__version__}"
@@ -274,7 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert_parser.add_argument(
         "input",
-        help="PDF 文件路径 或 包含 PDF 的目录",
+        help="PDF 文件路径、URL 或包含 PDF 的目录",
     )
     convert_parser.add_argument(
         "-o", "--output",
@@ -420,8 +429,85 @@ def main():
         )
         sys.exit(1)
 
+    # URL 模式
+    if input_type == "url":
+        file_url = args.input
+
+        if args.stdout and args.output:
+            print(
+                "错误: --stdout 和 -o 不能同时使用",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        if args.verbose:
+            print(f"  URL: {file_url}", file=sys.stderr)
+
+        t0 = time.time()
+        job_id = submit_job_url(
+            file_url,
+            api_token,
+            api_base_url=args.api_base_url,
+            model=args.model,
+            optional_payload=optional_payload,
+        )
+
+        if args.verbose:
+            print(f"  job_id: {job_id}", file=sys.stderr)
+
+        spinner = _Spinner()
+        with spinner:
+            result_data = poll_job(
+                api_token,
+                job_id,
+                api_base_url=args.api_base_url,
+                poll_interval=args.poll_interval,
+                timeout=args.timeout,
+                progress_callback=spinner.tick,
+            )
+
+        jsonl_url = result_data.get("resultUrl", {}).get("jsonUrl", "")
+        if not jsonl_url:
+            raise RuntimeError("无法获取 jsonl 结果 URL")
+
+        jsonl_text = download_result(jsonl_url)
+
+        if args.output:
+            output_path = Path(args.output)
+            stem = output_path.stem
+        else:
+            output_path = None
+            stem = "doc"
+
+        if args.media_dir:
+            media_path = Path(args.media_dir)
+        else:
+            media_path = Path(f"{stem}_media")
+
+        markdown_text = parse_jsonl_to_markdown(jsonl_text, media_path, stem)
+
+        elapsed = time.time() - t0
+
+        if args.stdout:
+            sys.stdout.write(markdown_text)
+            if not markdown_text.endswith("\n"):
+                sys.stdout.write("\n")
+        else:
+            if output_path:
+                md_path = output_path
+            else:
+                md_path = Path("output.md")
+            md_path.parent.mkdir(parents=True, exist_ok=True)
+            md_path.write_text(markdown_text, encoding="utf-8")
+
+        print(
+            f"✓ 完成: {elapsed:.1f}s | "
+            f"{len(markdown_text)} 字符",
+            file=sys.stderr,
+        )
+
     # 单文件模式
-    if input_type == "pdf":
+    elif input_type == "pdf":
         pdf_path = Path(args.input)
 
         if args.stdout and args.output:

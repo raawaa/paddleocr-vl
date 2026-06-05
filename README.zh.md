@@ -5,7 +5,7 @@
 
 [English](README.md) | [中文](README.zh.md)
 
-使用 [PaddleOCR-VL-1.5](https://github.com/PaddlePaddle/PaddleOCR) 百度 API 将 PDF 转换为 Markdown 的 CLI 工具。
+使用 [PaddleOCR-VL-1.6](https://github.com/PaddlePaddle/PaddleOCR) 百度 API 将 PDF 转换为 Markdown 的 CLI 工具。
 
 ## 快速开始
 
@@ -52,6 +52,9 @@ paddleocr-vl convert input.pdf --stdout | glow
 # 批量转换目录下的所有 PDF
 paddleocr-vl convert ~/pdfs/ -o ~/output/
 
+# 从远程 URL 转换 PDF
+paddleocr-vl convert https://example.com/document.pdf
+
 # 开启可选特性
 paddleocr-vl convert input.pdf --chart-recognition
 paddleocr-vl convert input.pdf --enable-all-features --no-doc-unwarping
@@ -82,7 +85,7 @@ paddleocr-vl convert input.pdf
 
 ### 可选特性
 
-PaddleOCR-VL-1.5 API 提供三个可选处理特性，默认**全部关闭**以节省处理时间和费用：
+PaddleOCR-VL-1.6 API 提供三个可选处理特性，默认**全部关闭**以节省处理时间和费用：
 
 | 特性 | 参数 | 说明 |
 |------|------|------|
@@ -122,7 +125,7 @@ paddleocr-vl config show                           # 查看当前配置
 paddleocr-vl convert <input> [options]
 
 Positional arguments:
-  input                 PDF 文件路径或包含 PDF 的目录
+  input                 PDF 文件路径、URL 或包含 PDF 的目录
 
 Options:
   -o, --output PATH             输出路径（文件或目录）
@@ -132,7 +135,7 @@ Options:
                                 （默认：配置文件或 $PADDLEOCR_API_TOKEN）
   --api-base-url URL            API 地址
                                 （默认：https://paddleocr.aistudio-app.com/api/v2/ocr/jobs）
-  --model TEXT                  模型名（默认：PaddleOCR-VL-1.5）
+  --model TEXT                  模型名（默认：PaddleOCR-VL-1.6）
   --timeout SECONDS             作业超时秒数（默认：1800）
   --poll-interval SEC           轮询间隔秒数（默认：5）
   --enable-all-features         开启所有可选特性
@@ -150,7 +153,7 @@ Options:
 
 PaddleOCR API 使用**异步任务**模型：
 
-1. **提交** — 上传 PDF 文件到 API 接口，获取 `jobId`
+1. **提交** — 上传 PDF 文件（或传入远程 PDF URL）到 API 接口，获取 `jobId`
 2. **轮询** — 每 5 秒查询任务状态，直到处理完成
 3. **下载** — 获取包含 Markdown 文本和图片 URL 的 JSONL 结果
 4. **解析** — 提取 Markdown 内容并在本地下载嵌入的图片

@@ -15,6 +15,7 @@ def parse_jsonl_to_markdown(
     图片下载到 media_dir 中。
     """
     all_parts = []
+    page_num = 0
 
     for line_num, line in enumerate(jsonl_text.strip().splitlines(), 1):
         line = line.strip()
@@ -41,5 +42,17 @@ def parse_jsonl_to_markdown(
                         img_full_path.write_bytes(img_resp.content)
                 except requests.RequestException:
                     pass
+
+            for img_name, img_url in parsing_result.get("outputImages", {}).items():
+                img_full_path = media_dir / f"{img_name}_{page_num}.jpg"
+                img_full_path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    img_resp = requests.get(img_url, timeout=60)
+                    if img_resp.status_code == 200:
+                        img_full_path.write_bytes(img_resp.content)
+                except requests.RequestException:
+                    pass
+
+            page_num += 1
 
     return "\n\n".join(all_parts)

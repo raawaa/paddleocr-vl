@@ -5,7 +5,7 @@
 
 [English](README.md) | [中文](README.zh.md)
 
-A CLI tool that converts PDFs to Markdown using the [PaddleOCR-VL-1.5](https://github.com/PaddlePaddle/PaddleOCR) Baidu API.
+A CLI tool that converts PDFs to Markdown using the [PaddleOCR-VL-1.6](https://github.com/PaddlePaddle/PaddleOCR) Baidu API.
 
 ## Quick start
 
@@ -52,6 +52,9 @@ paddleocr-vl convert input.pdf --stdout | glow
 # Process all PDFs in a directory
 paddleocr-vl convert ~/pdfs/ -o ~/output/
 
+# Convert from a remote PDF URL
+paddleocr-vl convert https://example.com/document.pdf
+
 # Enable optional features
 paddleocr-vl convert input.pdf --chart-recognition
 paddleocr-vl convert input.pdf --enable-all-features --no-doc-unwarping
@@ -82,7 +85,7 @@ paddleocr-vl convert input.pdf
 
 ### Optional features
 
-The PaddleOCR-VL-1.5 API offers three optional processing features, all **disabled by default**:
+The PaddleOCR-VL-1.6 API offers three optional processing features, all **disabled by default**:
 
 | Feature | Flag | Description |
 |---------|------|-------------|
@@ -122,7 +125,7 @@ paddleocr-vl config show                            # view current config
 paddleocr-vl convert <input> [options]
 
 Positional arguments:
-  input                 PDF file path or directory containing PDFs
+  input                 PDF file path, URL, or directory containing PDFs
 
 Options:
   -o, --output PATH             Output path (file or directory)
@@ -132,7 +135,7 @@ Options:
                                 (default: config file or $PADDLEOCR_API_TOKEN)
   --api-base-url URL            API endpoint URL
                                 (default: https://paddleocr.aistudio-app.com/api/v2/ocr/jobs)
-  --model TEXT                  Model name (default: PaddleOCR-VL-1.5)
+  --model TEXT                  Model name (default: PaddleOCR-VL-1.6)
   --timeout SECONDS             Job timeout in seconds (default: 1800)
   --poll-interval SEC           Poll interval in seconds (default: 5)
   --enable-all-features         Enable all optional API features
@@ -150,7 +153,7 @@ Options:
 
 The PaddleOCR API uses an **asynchronous job** model:
 
-1. **submit** — upload the PDF file to the API endpoint, receive a `jobId`
+1. **submit** — upload a PDF file (or pass a remote PDF URL) to the API, receive a `jobId`
 2. **poll** — query the job status every 5 seconds until processing is done
 3. **download** — fetch the JSONL result containing Markdown text and image URLs
 4. **parse** — extract Markdown content and download embedded images locally

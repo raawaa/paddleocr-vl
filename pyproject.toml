@@ -1,7 +1,7 @@
 [project]
 name = "paddleocr-vl"
-version = "0.1.0"
-description = "Convert PDFs to Markdown using the PaddleOCR-VL-1.5 Baidu API"
+version = "0.2.0"
+description = "Convert PDFs to Markdown using the PaddleOCR-VL-1.6 Baidu API"
 authors = [{name = "raawaa"}]
 license = "GPL-3.0-only"
 readme = "README.md"
