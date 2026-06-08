@@ -1,6 +1,6 @@
 [project]
 name = "paddleocr-vl"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Convert PDFs to Markdown using the PaddleOCR-VL-1.6 Baidu API"
 authors = [{name = "raawaa"}]
 license = "GPL-3.0-only"
@@ -34,8 +34,11 @@ Repository = "https://github.com/raawaa/paddleocr-vl"
 "Bug Tracker" = "https://github.com/raawaa/paddleocr-vl/issues"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/paddleocr_vl"]
