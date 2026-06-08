@@ -9,6 +9,14 @@ FEATURE_MAP = {
     "orientation-classify": "useDocOrientationClassify",
     "doc-unwarping": "useDocUnwarping",
     "chart-recognition": "useChartRecognition",
+    "layout-detection": "useLayoutDetection",
+    "layout-nms": "layoutNms",
+    "prettify-markdown": "prettifyMarkdown",
+    "show-formula-number": "showFormulaNumber",
+    "visualize": "visualize",
+    "restructure-pages": "restructurePages",
+    "merge-tables": "mergeTables",
+    "relevel-titles": "relevelTitles",
 }
 
 

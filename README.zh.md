@@ -58,6 +58,18 @@ paddleocr-vl convert https://example.com/document.pdf
 # 开启可选特性
 paddleocr-vl convert input.pdf --chart-recognition
 paddleocr-vl convert input.pdf --enable-all-features --no-doc-unwarping
+
+# 调整模型推理参数
+paddleocr-vl convert input.pdf --temperature 0.3 --top-p 0.9
+
+# 跨页表格合并 + 标题层级重构
+paddleocr-vl convert input.pdf --restructure-pages
+
+# 关闭版面检测，仅做纯 OCR
+paddleocr-vl convert input.pdf --no-layout-detection
+
+# 指定版面模型参数
+paddleocr-vl convert input.pdf --layout-threshold 0.3 --layout-nms
 ```
 
 ## 配置
@@ -85,29 +97,63 @@ paddleocr-vl convert input.pdf
 
 ### 可选特性
 
-PaddleOCR-VL-1.6 API 提供三个可选处理特性，默认**全部关闭**以节省处理时间和费用：
+PaddleOCR-VL-1.6 API 提供丰富的可选参数，按类型分为三类：
+
+#### 布尔开关特性
+
+默认**全部关闭**以节省处理时间和费用：
 
 | 特性 | 参数 | 说明 |
 |------|------|------|
 | 文档方向分类 | `--orientation-classify` | 自动检测并纠正页面方向 |
 | 文档扭曲矫正 | `--doc-unwarping` | 矫正弯曲或倾斜的文档照片 |
 | 图表识别 | `--chart-recognition` | 提取并结构化图表内容 |
+| 版面检测 | `--layout-detection` | 自动检测文档中不同区域并排序 |
+| 去除重叠框 | `--layout-nms` | 移除重复或高度重叠的区域框 |
+| Markdown 美化 | `--prettify-markdown` | 输出格式化 Markdown 文本 |
+| 公式编号 | `--show-formula-number` | 在输出中显示公式编号 |
+| 可视化输出 | `--visualize` | 返回可视化中间图像 |
+| 页面重构 | `--restructure-pages` | 多页 PDF 跨页表格合并+标题层级识别 |
+| 跨页表格 | `--merge-tables` | 识别并合并跨页表格 |
+| 标题识别 | `--relevel-titles` | 识别段落标题级别 |
 
-使用独立参数开启指定特性，或用 `--enable-all-features` 一次开启全部。
+使用独立参数开启指定特性，或用 `--enable-all-features` 一次开启全部布尔特性。
 
 如需持久化配置（每次转换自动生效）：
 
 ```bash
-paddleocr-vl config enable-feature orientation-classify
-paddleocr-vl config disable-feature orientation-classify
+paddleocr-vl config enable-feature layout-detection
+paddleocr-vl config disable-feature chart-recognition
 ```
+
+#### 数值参数
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `--temperature` | float | 采样温度，结果不稳定时调低 |
+| `--top-p` | float | Top-p 采样，结果发散时调低 |
+| `--repetition-penalty` | float | 重复惩罚系数，出现重复内容时调高 |
+| `--layout-threshold` | float | 版面模型得分阈值（0-1，默认 0.5） |
+| `--layout-unclip-ratio` | float | 检测框扩展系数（默认 1.0） |
+| `--min-pixels` | int | 输入图片最小像素值 |
+| `--max-pixels` | int | 输入图片最大像素值 |
+
+#### 字符串参数
+
+| 参数 | 可选值 | 说明 |
+|------|--------|------|
+| `--layout-merge-bboxes-mode` | `large`, `small`, `union` | 框合并模式 |
+| `--layout-shape-mode` | `rect`, `quad`, `poly`, `auto` | 几何形状 |
+| `--prompt-label` | `ocr`, `formula`, `table`, `chart` | 提示标签（关闭版面检测时生效） |
+
+#### 参数优先级
 
 多来源冲突时，按以下顺序决定最终值（后者覆盖前者）：
 
-1. 默认值 — 全部关闭
-2. 配置文件 — 持久化偏好
-3. `--enable-all-features` — 快速全开
-4. 独立参数 — 显式覆盖
+1. 默认值 — 原有 3 个 Feature 默认 false
+2. 配置文件 — 持久化偏好（仅布尔特性）
+3. `--enable-all-features` — 开启所有布尔特性
+4. 独立 CLI 参数 — 显式覆盖
 
 ### 配置管理命令
 
@@ -122,31 +168,69 @@ paddleocr-vl config show                           # 查看当前配置
 ## 参考
 
 ```
-paddleocr-vl convert <input> [options]
+usage: paddleocr-vl convert [-h] [-o OUTPUT] [--stdout] [--media-dir MEDIA_DIR]
+                            [--token TOKEN] [--api-base-url API_BASE_URL]
+                            [--model MODEL] [--timeout TIMEOUT]
+                            [--poll-interval POLL_INTERVAL]
+                            [--enable-all-features]
+                            [--orientation-classify | --no-orientation-classify]
+                            [--doc-unwarping | --no-doc-unwarping]
+                            [--chart-recognition | --no-chart-recognition]
+                            [--layout-detection | --no-layout-detection]
+                            [--layout-nms | --no-layout-nms]
+                            [--prettify-markdown | --no-prettify-markdown]
+                            [--show-formula-number | --no-show-formula-number]
+                            [--visualize | --no-visualize]
+                            [--restructure-pages | --no-restructure-pages]
+                            [--merge-tables | --no-merge-tables]
+                            [--relevel-titles | --no-relevel-titles]
+                            [--temperature TEMPERATURE] [--top-p TOP_P]
+                            [--repetition-penalty REPETITION_PENALTY]
+                            [--layout-threshold LAYOUT_THRESHOLD]
+                            [--layout-unclip-ratio LAYOUT_UNCLIP_RATIO]
+                            [--min-pixels MIN_PIXELS]
+                            [--max-pixels MAX_PIXELS]
+                            [--layout-merge-bboxes-mode {large,small,union}]
+                            [--layout-shape-mode {rect,quad,poly,auto}]
+                            [--prompt-label {ocr,formula,table,chart}]
+                            [--verbose] input
 
-Positional arguments:
-  input                 PDF 文件路径、URL 或包含 PDF 的目录
+positional arguments:
+  input                  PDF 文件路径、URL 或包含 PDF 的目录
 
-Options:
-  -o, --output PATH             输出路径（文件或目录）
-  --stdout                      输出 Markdown 到 stdout
-  --media-dir PATH              图片保存目录
-  --token TEXT                  API token
-                                （默认：配置文件或 $PADDLEOCR_API_TOKEN）
-  --api-base-url URL            API 地址
-                                （默认：https://paddleocr.aistudio-app.com/api/v2/ocr/jobs）
-  --model TEXT                  模型名（默认：PaddleOCR-VL-1.6）
-  --timeout SECONDS             作业超时秒数（默认：1800）
-  --poll-interval SEC           轮询间隔秒数（默认：5）
-  --enable-all-features         开启所有可选特性
-  --orientation-classify /      开启/关闭文档方向分类
-  --no-orientation-classify
-  --doc-unwarping /             开启/关闭文档扭曲矫正
-  --no-doc-unwarping
-  --chart-recognition /         开启/关闭图表识别
-  --no-chart-recognition
-  --verbose, -v                 详细日志
-  --version, -V                 显示版本
+options:
+  -h, --help             show this help message and exit
+  -o, --output OUTPUT    输出路径（文件或目录）
+  --stdout               输出 Markdown 到 stdout
+  --media-dir MEDIA_DIR  图片保存目录
+  --token TOKEN          API token（默认读取配置文件或 $PADDLEOCR_API_TOKEN）
+  --api-base-url URL     API 地址（默认: https://paddleocr.aistudio-app.com/api/v2/ocr/jobs）
+  --model MODEL          模型名（默认: PaddleOCR-VL-1.6）
+  --timeout TIMEOUT      作业超时秒数（默认: 1800）
+  --poll-interval SEC    轮询间隔秒数（默认: 5）
+  --enable-all-features  开启所有可选特性
+  --orientation-classify, --no-orientation-classify   开启/关闭文档方向分类
+  --doc-unwarping, --no-doc-unwarping                 开启/关闭文档扭曲矫正
+  --chart-recognition, --no-chart-recognition         开启/关闭图表识别
+  --layout-detection, --no-layout-detection           启用/关闭版面检测
+  --layout-nms, --no-layout-nms                       移除重复或高度重叠的区域框
+  --prettify-markdown, --no-prettify-markdown         Markdown 美化输出
+  --show-formula-number, --no-show-formula-number     显示公式编号
+  --visualize, --no-visualize                         返回可视化中间图
+  --restructure-pages, --no-restructure-pages         对多页 PDF 进行重构
+  --merge-tables, --no-merge-tables                   跨页表格合并
+  --relevel-titles, --no-relevel-titles               段落标题级别识别
+  --temperature TEMPERATURE                           采样温度
+  --top-p TOP_P                                       Top-p 采样
+  --repetition-penalty REPETITION_PENALTY             重复惩罚系数
+  --layout-threshold LAYOUT_THRESHOLD                 版面模型得分阈值
+  --layout-unclip-ratio LAYOUT_UNCLIP_RATIO           检测框扩展系数
+  --min-pixels MIN_PIXELS                             输入图片最小像素值
+  --max-pixels MAX_PIXELS                             输入图片最大像素值
+  --layout-merge-bboxes-mode {large,small,union}      框合并模式
+  --layout-shape-mode {rect,quad,poly,auto}           几何形状
+  --prompt-label {ocr,formula,table,chart}            提示标签
+  --verbose, -v                                       详细日志
 ```
 
 ## 工作原理

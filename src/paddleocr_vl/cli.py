@@ -22,11 +22,60 @@ from .errors import JobTimeoutError, PaddleOCRError, RateLimitError
 from .parser import parse_jsonl_to_markdown
 
 
-# CLI 短名到 API payload key 的映射
+# CLI 布尔短名到 API payload key 的映射
 CLI_FEATURE_FLAGS = {
     "orientation_classify": "useDocOrientationClassify",
     "doc_unwarping": "useDocUnwarping",
     "chart_recognition": "useChartRecognition",
+    "layout_detection": "useLayoutDetection",
+    "layout_nms": "layoutNms",
+    "prettify_markdown": "prettifyMarkdown",
+    "show_formula_number": "showFormulaNumber",
+    "visualize": "visualize",
+    "restructure_pages": "restructurePages",
+    "merge_tables": "mergeTables",
+    "relevel_titles": "relevelTitles",
+}
+
+# CLI 数值参数映射
+CLI_NUMERIC_PARAMS = {
+    "temperature": "temperature",
+    "top_p": "topP",
+    "repetition_penalty": "repetitionPenalty",
+    "layout_threshold": "layoutThreshold",
+    "layout_unclip_ratio": "layoutUnclipRatio",
+    "min_pixels": "minPixels",
+    "max_pixels": "maxPixels",
+}
+
+# CLI 字符串参数映射
+CLI_STRING_PARAMS = {
+    "layout_merge_bboxes_mode": "layoutMergeBboxesMode",
+    "layout_shape_mode": "layoutShapeMode",
+    "prompt_label": "promptLabel",
+}
+
+# 参数帮助文本（自动从 flag 名生成不够准确，单独维护）
+NUMERIC_PARAM_HELP = {
+    "temperature": "采样温度，结果不稳定时调低",
+    "top_p": "Top-p 采样，结果发散时调低",
+    "repetition_penalty": "重复惩罚系数，出现重复内容时调高",
+    "layout_threshold": "版面模型得分阈值（0-1，默认 0.5）",
+    "layout_unclip_ratio": "检测框扩展系数（默认 1.0）",
+    "min_pixels": "输入图片最小像素值",
+    "max_pixels": "输入图片最大像素值",
+}
+
+STRING_PARAM_HELP = {
+    "layout_merge_bboxes_mode": "框合并模式",
+    "layout_shape_mode": "几何形状",
+    "prompt_label": "提示标签（useLayoutDetection=False 时生效）",
+}
+
+STRING_PARAM_CHOICES = {
+    "layout_merge_bboxes_mode": ["large", "small", "union"],
+    "layout_shape_mode": ["rect", "quad", "poly", "auto"],
+    "prompt_label": ["ocr", "formula", "table", "chart"],
 }
 
 
@@ -99,20 +148,32 @@ def collect_pdfs(directory: Path) -> list[Path]:
 
 def build_optional_payload(args) -> dict:
     """合并配置文件 + CLI flag，生成最终 optionalPayload。"""
-    # 1. 硬编码默认值（全 False）
+    # 1. 硬编码默认值（已有 3 个 Feature 默认 False，保持向后兼容）
     payload = dict(DEFAULT_OPTIONAL_PAYLOAD)
 
-    # 2. 配置文件覆盖
+    # 2. 配置文件 features 覆盖
     config_features = _config.read_features()
     payload.update(config_features)
 
-    # 3. --enable-all-features 覆盖
+    # 3. --enable-all-features 覆盖所有布尔参数
     if args.enable_all_features:
-        for key in payload:
-            payload[key] = True
+        for api_key in CLI_FEATURE_FLAGS.values():
+            payload[api_key] = True
 
-    # 4. 独立 CLI flag 覆盖（仅当显式设置时）
+    # 4. 独立布尔 CLI flag 覆盖
     for attr, api_key in CLI_FEATURE_FLAGS.items():
+        val = getattr(args, attr, None)
+        if val is not None:
+            payload[api_key] = val
+
+    # 5. 数值参数 CLI flag
+    for attr, api_key in CLI_NUMERIC_PARAMS.items():
+        val = getattr(args, attr, None)
+        if val is not None:
+            payload[api_key] = val
+
+    # 6. 字符串参数 CLI flag
+    for attr, api_key in CLI_STRING_PARAMS.items():
         val = getattr(args, attr, None)
         if val is not None:
             payload[api_key] = val
@@ -327,7 +388,7 @@ def build_parser() -> argparse.ArgumentParser:
     convert_parser.add_argument(
         "--enable-all-features",
         action="store_true",
-        help="开启所有可选特性（文档方向分类/扭曲矫正/图表识别）",
+        help="开启所有可选特性（方向分类/扭曲矫正/图表识别/版面检测等）",
     )
     convert_parser.add_argument(
         "--orientation-classify",
@@ -347,6 +408,78 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="开启图表识别",
     )
+    # 新增布尔特性
+    convert_parser.add_argument(
+        "--layout-detection",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="启用版面检测",
+    )
+    convert_parser.add_argument(
+        "--layout-nms",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="移除重复或高度重叠的区域框",
+    )
+    convert_parser.add_argument(
+        "--prettify-markdown",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Markdown 美化输出",
+    )
+    convert_parser.add_argument(
+        "--show-formula-number",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="显示公式编号",
+    )
+    convert_parser.add_argument(
+        "--visualize",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="返回可视化中间图",
+    )
+    convert_parser.add_argument(
+        "--restructure-pages",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="对多页 PDF 进行重构（跨页表格合并+标题层级识别）",
+    )
+    convert_parser.add_argument(
+        "--merge-tables",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="跨页表格合并",
+    )
+    convert_parser.add_argument(
+        "--relevel-titles",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="段落标题级别识别",
+    )
+
+    # 数值参数
+    for attr, help_text in NUMERIC_PARAM_HELP.items():
+        flag = "--" + attr.replace("_", "-")
+        meta_type = int if attr in ("min_pixels", "max_pixels") else float
+        convert_parser.add_argument(
+            flag,
+            type=meta_type,
+            default=None,
+            help=help_text,
+        )
+
+    # 字符串参数
+    for attr, help_text in STRING_PARAM_HELP.items():
+        flag = "--" + attr.replace("_", "-")
+        convert_parser.add_argument(
+            flag,
+            type=str,
+            choices=STRING_PARAM_CHOICES[attr],
+            default=None,
+            help=help_text,
+        )
+
     convert_parser.add_argument(
         "--verbose", "-v", action="store_true", help="详细日志",
     )
@@ -359,10 +492,10 @@ def build_parser() -> argparse.ArgumentParser:
     set_token_parser.add_argument("token", help="API token")
 
     enable_feature_parser = config_subparsers.add_parser("enable-feature", help="开启可选特性（配置文件持久化）")
-    enable_feature_parser.add_argument("name", help="特性名: orientation-classify / doc-unwarping / chart-recognition")
+    enable_feature_parser.add_argument("name", help="特性名: orientation-classify, layout-detection, prettify-markdown 等")
 
     disable_feature_parser = config_subparsers.add_parser("disable-feature", help="关闭可选特性（配置文件持久化）")
-    disable_feature_parser.add_argument("name", help="特性名: orientation-classify / doc-unwarping / chart-recognition")
+    disable_feature_parser.add_argument("name", help="特性名: orientation-classify, layout-detection, prettify-markdown 等")
 
     config_subparsers.add_parser("show", help="查看当前配置")
     config_subparsers.add_parser("remove-token", help="删除 API token")
@@ -371,8 +504,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main():
+    # 省略子命令时默认走 convert（-V/--help 等主解析器 flag 不插入）
+    if len(sys.argv) >= 2:
+        first = sys.argv[1]
+        if first not in ("convert", "config") and not first.startswith("-"):
+            sys.argv.insert(1, "convert")
+
     parser = build_parser()
     args = parser.parse_args()
+
+    if args.command is None:
+        parser.print_help()
+        sys.exit(1)
 
     if args.command == "config":
         if args.config_command == "set-token":
