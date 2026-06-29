@@ -1,7 +1,6 @@
 import argparse
 import itertools
 import sys
-import time
 from pathlib import Path
 
 from . import __version__
@@ -12,14 +11,12 @@ from .api import (
     DEFAULT_OPTIONAL_PAYLOAD,
     JOB_TIMEOUT,
     POLL_INTERVAL,
-    download_result,
-    poll_job,
+    RequestsJobApi,
     read_api_token,
-    submit_job,
     submit_job_url,
 )
+from .conversion import Conversion, Input
 from .errors import JobTimeoutError, PaddleOCRError, RateLimitError
-from .parser import parse_jsonl_to_markdown
 
 
 # CLI 布尔短名到 API payload key 的映射
@@ -199,7 +196,6 @@ def convert_single(
     stem = pdf_path.stem
     pdf_size_mb = round(pdf_path.stat().st_size / 1024 / 1024, 2)
 
-    # 确定媒体目录
     if media_dir is None:
         if output_path and output_path.is_dir():
             media_dir = output_path / stem
@@ -208,42 +204,27 @@ def convert_single(
         else:
             media_dir = pdf_path.parent / f"{stem}_media"
 
-    t0 = time.time()
-
-    job_id = submit_job(
-        pdf_path,
-        api_token,
-        api_base_url=api_base_url,
-        model=model,
-        optional_payload=optional_payload,
-    )
-
-    if verbose:
-        print(f"  job_id: {job_id}", file=sys.stderr)
+    api = RequestsJobApi(api_token, api_base_url=api_base_url)
+    conversion = Conversion(api=api)
 
     spinner = _Spinner()
     with spinner:
-        result_data = poll_job(
-            api_token,
-            job_id,
-            api_base_url=api_base_url,
-            poll_interval=poll_interval,
-            timeout=timeout,
-            progress_callback=spinner.tick,
+        result = conversion.run(
+            Input(
+                source=pdf_path,
+                media_dir=media_dir,
+                options=optional_payload or {},
+            ),
+            on_progress=spinner.tick,
         )
-    elapsed = time.time() - t0
-    spinner.done(int(elapsed))
+    spinner.done(int(result.elapsed_s))
 
-    jsonl_url = result_data.get("resultUrl", {}).get("jsonUrl", "")
-    if not jsonl_url:
-        raise RuntimeError("无法获取 jsonl 结果 URL")
-
-    jsonl_text = download_result(jsonl_url)
-    markdown_text = parse_jsonl_to_markdown(jsonl_text, media_dir, stem)
+    if verbose:
+        print(f"  job_id: {result.job_id}", file=sys.stderr)
 
     if stdout:
-        sys.stdout.write(markdown_text)
-        if not markdown_text.endswith("\n"):
+        sys.stdout.write(result.markdown)
+        if not result.markdown.endswith("\n"):
             sys.stdout.write("\n")
     else:
         if output_path:
@@ -251,14 +232,13 @@ def convert_single(
         else:
             md_path = pdf_path.with_suffix(".md")
         md_path.parent.mkdir(parents=True, exist_ok=True)
-        md_path.write_text(markdown_text, encoding="utf-8")
+        md_path.write_text(result.markdown, encoding="utf-8")
 
-    elapsed_total = time.time() - t0
     return {
         "pdf": str(pdf_path),
         "pdf_size_mb": pdf_size_mb,
-        "elapsed_s": round(elapsed_total, 2),
-        "chars": len(markdown_text),
+        "elapsed_s": round(result.elapsed_s, 2),
+        "chars": len(result.markdown),
         "status": "ok",
     }
 

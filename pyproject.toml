@@ -42,3 +42,8 @@ source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/paddleocr_vl"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
