@@ -14,6 +14,7 @@ from .parser import parse_jsonl
 class Input:
     source: Path | str
     media_dir: Path
+    model: str
     options: dict = field(default_factory=dict)
 
 
@@ -67,7 +68,7 @@ class Conversion:
     ) -> ConversionResult:
         t0 = time.time()
         job_id = self._api.submit(
-            input.source, model="", options=input.options
+            input.source, model=input.model, options=input.options
         )
         result_data = self._api.poll(job_id, on_progress=on_progress)
         jsonl_url = result_data.get("resultUrl", {}).get("jsonUrl", "")

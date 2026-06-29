@@ -8,6 +8,7 @@ import pytest
 from paddleocr_vl.conversion import Conversion, Input, JobProgress
 from paddleocr_vl.errors import JobFailedError, JobTimeoutError, RateLimitError
 from paddleocr_vl.media import materialize_media  # noqa: F401  (used in test indirectly)
+from paddleocr_vl.api import API_MODEL
 
 from fake_api import FakeJobApi
 
@@ -78,7 +79,7 @@ def test_run_pdf_happy_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr("paddleocr_vl.media.requests.get", _fake_get)
 
     result = Conversion(api=fake).run(
-        Input(source=pdf_path, media_dir=media_dir, options={})
+        Input(source=pdf_path, media_dir=media_dir, model=API_MODEL, options={})
     )
 
     assert result.job_id == "job-abc"
@@ -93,7 +94,7 @@ def test_run_pdf_happy_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert (media_dir / "chart_2.jpg").exists()
     assert (media_dir / "chart_2.jpg").read_bytes() == b"FAKE"
 
-    assert fake.submit_calls == [(pdf_path, "", {})]
+    assert fake.submit_calls == [(pdf_path, API_MODEL, {})]
     assert fake.poll_calls == ["job-abc"]
     assert fake.download_calls == ["https://fake/jsonl"]
 
@@ -112,7 +113,7 @@ def test_run_url_happy_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr("paddleocr_vl.media.requests.get", _fake_get)
 
     result = Conversion(api=fake).run(
-        Input(source=url, media_dir=media_dir, options={})
+        Input(source=url, media_dir=media_dir, model=API_MODEL, options={})
     )
 
     assert result.job_id == "job-url-1"
@@ -121,7 +122,7 @@ def test_run_url_happy_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert "Second page." in result.markdown
     assert result.elapsed_s >= 0
 
-    assert fake.submit_calls == [(url, "", {})]
+    assert fake.submit_calls == [(url, API_MODEL, {})]
     assert fake.poll_calls == ["job-url-1"]
     assert fake.download_calls == ["https://fake/jsonl"]
 
@@ -234,7 +235,7 @@ def test_run_raises_job_failed_error(
 
     with pytest.raises(JobFailedError, match="ocr engine exploded"):
         Conversion(api=fake).run(
-            Input(source=pdf_path, media_dir=media_dir, options={})
+            Input(source=pdf_path, media_dir=media_dir, model=API_MODEL, options={})
         )
 
 
@@ -258,7 +259,7 @@ def test_run_raises_job_timeout_error(
 
     with pytest.raises(JobTimeoutError, match="作业超时"):
         Conversion(api=fake).run(
-            Input(source=pdf_path, media_dir=media_dir, options={})
+            Input(source=pdf_path, media_dir=media_dir, model=API_MODEL, options={})
         )
 
     assert fake.poll_calls == ["job-tmo"]
@@ -282,7 +283,7 @@ def test_run_raises_rate_limit_error(
 
     with pytest.raises(_RateLimitError, match="quota exhausted"):
         Conversion(api=fake).run(
-            Input(source=pdf_path, media_dir=media_dir, options={})
+            Input(source=pdf_path, media_dir=media_dir, model=API_MODEL, options={})
         )
 
     assert len(fake.submit_calls) == 1
@@ -313,7 +314,7 @@ def test_run_calls_progress_callback_with_typed_values(
 
     progress_events: list[JobProgress] = []
     Conversion(api=fake).run(
-        Input(source=pdf_path, media_dir=media_dir, options={}),
+        Input(source=pdf_path, media_dir=media_dir, model=API_MODEL, options={}),
         on_progress=progress_events.append,
     )
 

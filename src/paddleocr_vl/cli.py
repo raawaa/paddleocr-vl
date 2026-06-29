@@ -179,6 +179,7 @@ def _run_conversion(
     source: Path | str,
     api: JobApi,
     *,
+    model: str = API_MODEL,
     media_dir: Path,
     options: dict,
     output_path: Path | None = None,
@@ -195,7 +196,7 @@ def _run_conversion(
     spinner = _Spinner()
     with spinner:
         result = conversion.run(
-            Input(source=source, media_dir=media_dir, options=options),
+            Input(source=source, media_dir=media_dir, model=model, options=options),
             on_progress=spinner.tick,
         )
     spinner.done(int(result.elapsed_s))
@@ -547,6 +548,7 @@ def main():
             result = _run_conversion(
                 source=args.input,
                 api=api,
+                model=args.model,
                 media_dir=media_dir,
                 options=optional_payload or {},
                 output_path=output_path,
@@ -590,6 +592,7 @@ def main():
             result = _run_conversion(
                 source=pdf_path,
                 api=api,
+                model=args.model,
                 media_dir=media_dir,
                 options=optional_payload or {},
                 output_path=output_path,
