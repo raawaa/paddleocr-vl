@@ -13,10 +13,9 @@ from .api import (
     POLL_INTERVAL,
     RequestsJobApi,
     read_api_token,
-    submit_job_url,
 )
-from .conversion import Conversion, Input
-from .errors import JobTimeoutError, PaddleOCRError, RateLimitError
+from .conversion import Conversion, Input, JobApi
+from .errors import PaddleOCRError, RateLimitError
 
 
 # CLI 布尔短名到 API payload key 的映射
@@ -178,43 +177,27 @@ def build_optional_payload(args) -> dict:
     return payload
 
 
-def convert_single(
-    pdf_path: Path,
-    api_token: str,
+def _run_conversion(
+    source: Path | str,
+    api: JobApi,
     *,
+    media_dir: Path,
+    options: dict,
     output_path: Path | None = None,
-    media_dir: Path | None = None,
     stdout: bool = False,
     verbose: bool = False,
-    api_base_url: str = API_BASE_URL,
-    model: str = API_MODEL,
-    timeout: float = JOB_TIMEOUT,
-    poll_interval: float = POLL_INTERVAL,
-    optional_payload: dict | None = None,
 ) -> dict:
-    """处理单个 PDF，返回结果字典。"""
-    stem = pdf_path.stem
-    pdf_size_mb = round(pdf_path.stat().st_size / 1024 / 1024, 2)
+    """Run a single Conversion and write the markdown to disk or stdout.
 
-    if media_dir is None:
-        if output_path and output_path.is_dir():
-            media_dir = output_path / stem
-        elif output_path:
-            media_dir = output_path.parent / f"{stem}_media"
-        else:
-            media_dir = pdf_path.parent / f"{stem}_media"
-
-    api = RequestsJobApi(api_token, api_base_url=api_base_url)
+    Returns a small dict so callers can show per-file timing / char counts
+    without re-reading the result. Used by URL mode, single-PDF mode, and
+    the directory batch loop.
+    """
     conversion = Conversion(api=api)
-
     spinner = _Spinner()
     with spinner:
         result = conversion.run(
-            Input(
-                source=pdf_path,
-                media_dir=media_dir,
-                options=optional_payload or {},
-            ),
+            Input(source=source, media_dir=media_dir, options=options),
             on_progress=spinner.tick,
         )
     spinner.done(int(result.elapsed_s))
@@ -227,81 +210,69 @@ def convert_single(
         if not result.markdown.endswith("\n"):
             sys.stdout.write("\n")
     else:
-        if output_path:
-            md_path = output_path
-        else:
-            md_path = pdf_path.with_suffix(".md")
-        md_path.parent.mkdir(parents=True, exist_ok=True)
-        md_path.write_text(result.markdown, encoding="utf-8")
+        if output_path is None:
+            if isinstance(source, Path):
+                output_path = source.with_suffix(".md")
+            else:
+                output_path = Path("output.md")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(result.markdown, encoding="utf-8")
 
     return {
-        "pdf": str(pdf_path),
-        "pdf_size_mb": pdf_size_mb,
+        "job_id": result.job_id,
         "elapsed_s": round(result.elapsed_s, 2),
         "chars": len(result.markdown),
         "status": "ok",
     }
 
 
-def convert_batch(
-    pdf_dir: Path,
-    api_token: str,
+def _run_batch(
+    pdfs: list[Path],
+    api: JobApi,
     *,
-    output_dir: Path | None = None,
+    output_dir: Path,
+    options: dict,
     verbose: bool = False,
-    api_base_url: str = API_BASE_URL,
-    model: str = API_MODEL,
-    timeout: float = JOB_TIMEOUT,
-    poll_interval: float = POLL_INTERVAL,
-    optional_payload: dict | None = None,
 ) -> tuple[int, int]:
-    """批量转换目录下所有 PDF。返回 (成功数, 失败数)。"""
-    pdfs = collect_pdfs(pdf_dir)
+    """Run Conversion for every PDF in `pdfs`. Returns (ok, fail).
+
+    Policy: `RateLimitError` halts the batch (remaining PDFs are counted
+    as failed). Any other `PaddleOCRError` or generic exception is caught
+    per-PDF, logged, and the loop continues. This policy is CLI-level
+    concern (ADR `0002-batch-policy-in-cli.md`); `Conversion` stays
+    single-source.
+    """
     total = len(pdfs)
-
-    if total == 0:
-        print(f"目录中没有 PDF 文件: {pdf_dir}", file=sys.stderr)
-        return 0, 0
-
-    if output_dir is None:
-        output_dir = Path("./output")
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     ok_count = 0
     fail_count = 0
 
     for i, pdf_path in enumerate(pdfs, 1):
-        pdf_size_mb = round(pdf_path.stat().st_size / 1024 / 1024, 2)
-        print(f"\n[{i}/{total}] {pdf_path.name} ({pdf_size_mb} MB)")
+        size_mb = round(pdf_path.stat().st_size / 1024 / 1024, 2)
+        print(f"\n[{i}/{total}] {pdf_path.name} ({size_mb} MB)")
 
+        stem = pdf_path.stem
         try:
-            result = convert_single(
-                pdf_path,
-                api_token,
-                output_path=output_dir / f"{pdf_path.stem}.md",
+            result = _run_conversion(
+                source=pdf_path,
+                api=api,
+                media_dir=output_dir / f"{stem}_media",
+                options=options,
+                output_path=output_dir / f"{stem}.md",
                 verbose=verbose,
-                api_base_url=api_base_url,
-                model=model,
-                timeout=timeout,
-                poll_interval=poll_interval,
-                optional_payload=optional_payload,
             )
             ok_count += 1
             print(
                 f"  ✓ {result['elapsed_s']:.1f}s | {result['chars']} 字符"
             )
-
         except RateLimitError as e:
             print(f"  限流: {str(e)[:100]}", file=sys.stderr)
             print(
                 f"\n=== 批量处理中断: 已完成 {ok_count}/{total} ==="
             )
             return ok_count, fail_count + (total - i + 1)
-
         except PaddleOCRError as e:
             fail_count += 1
             print(f"  ✗ {str(e)[:100]}", file=sys.stderr)
-
         except Exception as e:
             fail_count += 1
             print(f"  ✗ {str(e)[:100]}", file=sys.stderr)
@@ -554,8 +525,6 @@ def main():
 
     # URL 模式
     if input_type == "url":
-        file_url = args.input
-
         if args.stdout and args.output:
             print(
                 "错误: --stdout 和 -o 不能同时使用",
@@ -564,70 +533,36 @@ def main():
             sys.exit(1)
 
         if args.verbose:
-            print(f"  URL: {file_url}", file=sys.stderr)
+            print(f"  URL: {args.input}", file=sys.stderr)
 
-        t0 = time.time()
-        job_id = submit_job_url(
-            file_url,
-            api_token,
-            api_base_url=args.api_base_url,
-            model=args.model,
-            optional_payload=optional_payload,
-        )
-
-        if args.verbose:
-            print(f"  job_id: {job_id}", file=sys.stderr)
-
-        spinner = _Spinner()
-        with spinner:
-            result_data = poll_job(
-                api_token,
-                job_id,
-                api_base_url=args.api_base_url,
-                poll_interval=args.poll_interval,
-                timeout=args.timeout,
-                progress_callback=spinner.tick,
-            )
-
-        jsonl_url = result_data.get("resultUrl", {}).get("jsonUrl", "")
-        if not jsonl_url:
-            raise RuntimeError("无法获取 jsonl 结果 URL")
-
-        jsonl_text = download_result(jsonl_url)
-
-        if args.output:
-            output_path = Path(args.output)
-            stem = output_path.stem
-        else:
-            output_path = None
-            stem = "doc"
+        api = RequestsJobApi(api_token, api_base_url=args.api_base_url)
 
         if args.media_dir:
-            media_path = Path(args.media_dir)
+            media_dir = Path(args.media_dir)
         else:
-            media_path = Path(f"{stem}_media")
+            stem = Path(args.output).stem if args.output else "doc"
+            media_dir = Path(f"{stem}_media")
 
-        markdown_text = parse_jsonl_to_markdown(jsonl_text, media_path, stem)
+        output_path = Path(args.output) if args.output else None
 
-        elapsed = time.time() - t0
-
-        if args.stdout:
-            sys.stdout.write(markdown_text)
-            if not markdown_text.endswith("\n"):
-                sys.stdout.write("\n")
-        else:
-            if output_path:
-                md_path = output_path
-            else:
-                md_path = Path("output.md")
-            md_path.parent.mkdir(parents=True, exist_ok=True)
-            md_path.write_text(markdown_text, encoding="utf-8")
-
-        print(
-            f"✓ 完成: {elapsed:.1f}s | "
-            f"{len(markdown_text)} 字符",
-            file=sys.stderr,
-        )
+        try:
+            result = _run_conversion(
+                source=args.input,
+                api=api,
+                media_dir=media_dir,
+                options=optional_payload or {},
+                output_path=output_path,
+                stdout=args.stdout,
+                verbose=args.verbose,
+            )
+            if not args.stdout:
+                print(
+                    f"✓ 完成: {result['elapsed_s']:.1f}s | "
+                    f"{result['chars']} 字符"
+                )
+        except PaddleOCRError as e:
+            print(f"错误: {e}", file=sys.stderr)
+            sys.exit(1)
 
     # 单文件模式
     elif input_type == "pdf":
@@ -640,26 +575,28 @@ def main():
             )
             sys.exit(1)
 
-        if args.media_dir:
-            media_path = Path(args.media_dir)
-        else:
-            media_path = None
-
         output_path = Path(args.output) if args.output else None
 
+        if args.media_dir:
+            media_dir = Path(args.media_dir)
+        elif output_path and output_path.is_dir():
+            media_dir = output_path / pdf_path.stem
+        elif output_path:
+            media_dir = output_path.parent / f"{pdf_path.stem}_media"
+        else:
+            media_dir = pdf_path.parent / f"{pdf_path.stem}_media"
+
+        api = RequestsJobApi(api_token, api_base_url=args.api_base_url)
+
         try:
-            result = convert_single(
-                pdf_path,
-                api_token,
+            result = _run_conversion(
+                source=pdf_path,
+                api=api,
+                media_dir=media_dir,
+                options=optional_payload or {},
                 output_path=output_path,
-                media_dir=media_path,
                 stdout=args.stdout,
                 verbose=args.verbose,
-                api_base_url=args.api_base_url,
-                model=args.model,
-                timeout=args.timeout,
-                poll_interval=args.poll_interval,
-                optional_payload=optional_payload,
             )
             if not args.stdout:
                 print(
@@ -686,18 +623,21 @@ def main():
                 file=sys.stderr,
             )
 
-        output_dir = Path(args.output) if args.output else None
+        output_dir = Path(args.output) if args.output else Path("./output")
 
-        ok_count, fail_count = convert_batch(
-            Path(args.input),
-            api_token,
+        pdf_dir = Path(args.input)
+        pdfs = collect_pdfs(pdf_dir)
+        if not pdfs:
+            print(f"目录中没有 PDF 文件: {pdf_dir}", file=sys.stderr)
+            sys.exit(1)
+
+        api = RequestsJobApi(api_token, api_base_url=args.api_base_url)
+        ok_count, fail_count = _run_batch(
+            pdfs,
+            api,
             output_dir=output_dir,
+            options=optional_payload or {},
             verbose=args.verbose,
-            api_base_url=args.api_base_url,
-            model=args.model,
-            timeout=args.timeout,
-            poll_interval=args.poll_interval,
-            optional_payload=optional_payload,
         )
         total = ok_count + fail_count
         print(f"\n批量处理完成: {ok_count}/{total} 成功")
