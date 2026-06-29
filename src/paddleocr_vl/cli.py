@@ -14,7 +14,7 @@ from .api import (
     RequestsJobApi,
     read_api_token,
 )
-from .conversion import Conversion, Input, JobApi
+from .conversion import Conversion, Input, JobApi, JobProgress
 from .errors import PaddleOCRError, RateLimitError
 
 
@@ -92,17 +92,15 @@ class _Spinner:
         sys.stderr.write("\r" + " " * 60 + "\r")
         sys.stderr.flush()
 
-    def tick(self, elapsed: int, progress: dict | None = None):
+    def tick(self, progress: JobProgress):
         if not self._running:
             return
         pages = ""
-        if progress:
-            total = progress.get("totalPages", 0)
-            extracted = progress.get("extractedPages", 0)
-            if total:
-                pages = f" ({extracted}/{total} pages)"
+        if progress.total:
+            pages = f" ({progress.extracted}/{progress.total} pages)"
         sys.stderr.write(
-            f"\r  {next(self._spinner)} {self.msg}{pages} ({elapsed}s)"
+            f"\r  {next(self._spinner)} {self.msg}{pages} "
+            f"({progress.elapsed_s}s)"
         )
         sys.stderr.flush()
 

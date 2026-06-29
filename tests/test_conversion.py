@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from paddleocr_vl.conversion import Conversion, Input
-from paddleocr_vl.errors import JobFailedError, RateLimitError
+from paddleocr_vl.conversion import Conversion, Input, JobProgress
+from paddleocr_vl.errors import JobFailedError, JobTimeoutError, RateLimitError
 from paddleocr_vl.media import materialize_media  # noqa: F401  (used in test indirectly)
 
 from fake_api import FakeJobApi
@@ -211,3 +211,128 @@ def test_run_batch_continues_on_other_errors(
     assert (output_dir / "c.md").exists()
     assert len(fake.submit_calls) == 3
     assert len(fake.poll_calls) == 3
+
+
+# ----- error-path tests --------------------------------------------------
+
+def test_run_raises_job_failed_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`Conversion.run` raises `JobFailedError` when the API reports
+    `state == "failed"`, surfacing the server's `errorMsg` in the message."""
+    pdf_path = _make_pdf(tmp_path, "input.pdf")
+    media_dir = tmp_path / "media"
+
+    fake = FakeJobApi(
+        job_id="job-failed",
+        poll_responses=[
+            {"state": "failed", "errorMsg": "ocr engine exploded"},
+        ],
+        jsonl_text=_build_jsonl(),
+    )
+    monkeypatch.setattr("paddleocr_vl.media.requests.get", _fake_get)
+
+    with pytest.raises(JobFailedError, match="ocr engine exploded"):
+        Conversion(api=fake).run(
+            Input(source=pdf_path, media_dir=media_dir, options={})
+        )
+
+
+def test_run_raises_job_timeout_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`Conversion.run` raises `JobTimeoutError` when polling exceeds the
+    configured timeout. The `FakeJobApi` records the call and signals
+    timeout by raising the exception directly."""
+    pdf_path = _make_pdf(tmp_path, "input.pdf")
+    media_dir = tmp_path / "media"
+
+    fake = FakeJobApi(
+        job_id="job-tmo",
+        poll_responses=[
+            JobTimeoutError("作业超时 (1800s), job_id: job-tmo"),
+        ],
+        jsonl_text=_build_jsonl(),
+    )
+    monkeypatch.setattr("paddleocr_vl.media.requests.get", _fake_get)
+
+    with pytest.raises(JobTimeoutError, match="作业超时"):
+        Conversion(api=fake).run(
+            Input(source=pdf_path, media_dir=media_dir, options={})
+        )
+
+    assert fake.poll_calls == ["job-tmo"]
+
+
+def test_run_raises_rate_limit_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`Conversion.run` raises `RateLimitError` when `submit` raises it
+    (e.g. the server returns HTTP 429)."""
+    from paddleocr_vl.errors import RateLimitError as _RateLimitError
+    pdf_path = _make_pdf(tmp_path, "input.pdf")
+    media_dir = tmp_path / "media"
+
+    fake = FakeJobApi(
+        job_id="job-rl",
+        submit_error=_RateLimitError("quota exhausted"),
+        jsonl_text=_build_jsonl(),
+    )
+    monkeypatch.setattr("paddleocr_vl.media.requests.get", _fake_get)
+
+    with pytest.raises(_RateLimitError, match="quota exhausted"):
+        Conversion(api=fake).run(
+            Input(source=pdf_path, media_dir=media_dir, options={})
+        )
+
+    assert len(fake.submit_calls) == 1
+    assert fake.poll_calls == []
+
+
+# ----- progress-callback test --------------------------------------------
+
+def test_run_calls_progress_callback_with_typed_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The `on_progress` callback is invoked with `JobProgress` instances;
+    `elapsed_s` and `extracted` increase monotonically, and `total`
+    matches the fixture value across all events."""
+    pdf_path = _make_pdf(tmp_path, "input.pdf")
+    media_dir = tmp_path / "media"
+
+    fake = FakeJobApi(
+        job_id="job-prog",
+        poll_responses=[
+            {"extractProgress": {"totalPages": 10, "extractedPages": 3}},
+            {"extractProgress": {"totalPages": 10, "extractedPages": 7}},
+            {"state": "done", "resultUrl": {"jsonUrl": "https://fake/jsonl"}},
+        ],
+        jsonl_text=_build_jsonl(),
+    )
+    monkeypatch.setattr("paddleocr_vl.media.requests.get", _fake_get)
+
+    progress_events: list[JobProgress] = []
+    Conversion(api=fake).run(
+        Input(source=pdf_path, media_dir=media_dir, options={}),
+        on_progress=progress_events.append,
+    )
+
+    assert len(progress_events) == 2
+    assert all(isinstance(e, JobProgress) for e in progress_events)
+    assert progress_events[0].elapsed_s < progress_events[1].elapsed_s
+    assert progress_events[0].extracted < progress_events[1].extracted
+    assert progress_events[0].total == 10
+    assert progress_events[1].total == 10
+
+
+def test_spinner_does_not_know_api_field_names() -> None:
+    """The spinner (UI) is decoupled from the API's field names. It must
+    not contain `totalPages` or `extractedPages` — those are the API's
+    vocabulary, surfaced through `JobProgress.total` / `.extracted`."""
+    import inspect
+
+    from paddleocr_vl import cli
+
+    source = inspect.getsource(cli._Spinner)
+    assert "totalPages" not in source
+    assert "extractedPages" not in source
