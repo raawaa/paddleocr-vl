@@ -65,3 +65,17 @@ src/paddleocr_vl/
 - 使用 `uv` 管理项目环境
 - 新增依赖用 `uv add requests`（正式依赖）或 `uv add --dev pytest`（开发依赖）
 - 不要用 `pip install` 或 `uv pip install` 装项目依赖
+
+## Agent skills
+
+### Issue tracker
+
+GitHub issues in `raawaa/paddleocr-vl` (via `gh`); external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary (each role's label string equals its name): `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: one `CONTEXT.md` + `docs/adr/` at the repo root (created lazily). See `docs/agents/domain.md`.
