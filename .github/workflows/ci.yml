@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   lint:
@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uvx ruff@latest check src/
+      - run: uvx ruff@latest check src/ tests/
 
   test:
     runs-on: ubuntu-latest
@@ -26,5 +26,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync
+      - name: Run tests
+        run: uv run pytest
       - name: Smoke test
         run: uv run python -m paddleocr_vl --help
