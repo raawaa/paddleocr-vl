@@ -31,15 +31,15 @@ A setting passed in the API's `optionalPayload`. Three subtypes: feature flag, n
 _Avoid_: "parameter", "setting", "config"
 
 **Feature flag**:
-A boolean option. Toggled by `--<flag>` / `--no-<flag>` on the CLI, or `config enable-feature` / `disable-feature` to persist.
+A boolean option. Toggled by `--<flag>` / `--no-<flag>` on the CLI, or `config enable-feature` / `disable-feature` to persist. Persisted entries live in `Config.features` (see ADR-0003).
 _Avoid_: "toggle", "boolean option", "flag" (the project uses "flag" only for CLI argument names, not for the concept)
 
 **Numeric option**:
-A floating-point or integer option (e.g. `--temperature`, `--layout-threshold`).
+A floating-point or integer option (e.g. `--temperature`, `--layout-threshold`). Per-invocation only; never persisted (ADR-0003).
 _Avoid_: "parameter", "numeric feature"
 
 **String option**:
-An enum-valued option (e.g. `--layout-merge-bboxes-mode`, `--prompt-label`).
+An enum-valued option (e.g. `--layout-merge-bboxes-mode`, `--prompt-label`). Per-invocation only; never persisted (ADR-0003).
 _Avoid_: "choice", "string feature"
 
 ## Auth
@@ -65,3 +65,23 @@ _Avoid_: "input type"
 **Job state**:
 The status the API reports during polling: `done` or `failed` are the only two states the CLI distinguishes. Intermediate progress is reported via `extractProgress` but is not modeled as a named state.
 _Avoid_: "status" (too generic), "phase" (we don't use this)
+
+## Limits
+
+**Free tier**:
+The PaddleOCR API allows ~20K parsed pages per day. Exceeding it returns HTTP 429, which the CLI surfaces as `RateLimitError` (`src/paddleocr_vl/errors.py:5`).
+_Avoid_: "free quota", "credit", "free allowance"
+
+**Rate limit**:
+The API's per-day page budget, exhausted above 20K pages/day. CLI behavior on hitting it: batch mode halts immediately (`cli.py:266-271`); single-file mode exits non-zero.
+_Avoid_: "throttle", "429" (the HTTP status is an implementation detail, not a domain term)
+
+**Page cap**:
+The PaddleOCR API silently drops pages beyond ~100 in a single PDF input — no error is raised; the result just ends earlier than the source. The CLI does **not** detect or warn about this; it is a documented upstream behavior surfaced only in `README`/docs.
+_Avoid_: "page limit", "max pages", "truncation limit"
+
+## Documentation
+
+**README**:
+The repo-root `README.md` and `README.zh.md`. Their audience is the **evaluator** — first 30 seconds decide install/no-install. Content must be structurally identical across languages; only the natural-language strings may differ. Both files are guarded by a structural skeleton lint in CI.
+_Avoid_: Treating README as a Reference manual (that's `docs/reference.md`)
